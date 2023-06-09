@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from matplotlib import pyplot as plt
 from matplotlib import image as mpimg
 import os
 
@@ -25,6 +26,6 @@ color_hist = cv2.calcHist([color_sample], [0, 1, 2], None, [8, 8, 8], [0, 256, 0
 # Normalize the histogram
 cv2.normalize(color_hist, color_hist)
 
-# Display the color spectrogram
-cv2.imshow('Color Spectrogram', color_hist)
-cv2.waitKey(0)
+# Display the color spectrogram using matplotlib.pyplot
+plt.imshow(color_hist)
+plt.show()
