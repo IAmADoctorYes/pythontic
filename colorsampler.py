@@ -1,27 +1,25 @@
+import cv2
 import numpy as np
-from matplotlib import pyplot as plt
-from matplotlib import image as mpimg
-from skimage import color
-import os
+from libcamera import stills
 
-# Capture an image using libcamera-still
-os.system('libcamera-still -o image.jpg')
-
-# Load the image using matplotlib.image
-image = mpimg.imread('image.jpg')
+# Capture an image using libcamera
+camera = stills.CameraStill()
+output = camera.capture(encoding='bgr')
+image = np.frombuffer(output, dtype=np.uint8).reshape((camera.resolution[1], camera.resolution[0], 3))
 
 # Get the center pixel coordinates
 center_x = image.shape[1] // 2
 center_y = image.shape[0] // 2
 
 # Get the color sample from the center of the image
-color_sample = image[center_y-50:center_y+50, center_x-50:center_x+50]
+color_sample = image[center_y-5:center_y+5, center_x-5:center_x+5]
 
-# Convert the color sample to the LAB color space
-color_sample_lab = color.rgb2lab(color_sample)
+# Calculate the color histogram for the sample region
+color_hist = cv2.calcHist([color_sample], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
 
-# Calculate the average LAB color values
-avg_lab = np.mean(color_sample_lab, axis=(0, 1))
+# Normalize the histogram
+cv2.normalize(color_hist, color_hist)
 
-# Display the average LAB color values
-print(f'Average LAB color values: L={avg_lab[0]:.2f}, a={avg_lab[1]:.2f}, b={avg_lab[2]:.2f}')
+# Display the color spectrogram
+cv2.imshow('Color Spectrogram', color_hist)
+cv2.waitKey(0)
