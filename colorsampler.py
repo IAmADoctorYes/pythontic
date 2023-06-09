@@ -26,6 +26,9 @@ color_hist = cv2.calcHist([color_sample], [0, 1, 2], None, [8, 8, 8], [0, 256, 0
 # Normalize the histogram
 cv2.normalize(color_hist, color_hist)
 
+# Create a 2D projection of the color histogram by summing along the first axis
+color_hist_2d = np.sum(color_hist, axis=0)
+
 # Display the color spectrogram using matplotlib.pyplot
-plt.imshow(color_hist)
+plt.imshow(color_hist_2d)
 plt.show()
