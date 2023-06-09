@@ -1,11 +1,16 @@
 import cv2
 import numpy as np
-from libcamera import stills
+from matplotlib import image as mpimg
+import os
 
-# Capture an image using libcamera
-camera = stills.CameraStill()
-output = camera.capture(encoding='bgr')
-image = np.frombuffer(output, dtype=np.uint8).reshape((camera.resolution[1], camera.resolution[0], 3))
+# Capture an image using libcamera-still
+os.system('libcamera-still -o image.jpg')
+
+# Load the image using matplotlib.image
+image = mpimg.imread('image.jpg')
+
+# Convert the image from RGB to BGR
+image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
 # Get the center pixel coordinates
 center_x = image.shape[1] // 2
