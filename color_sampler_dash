@@ -1,8 +1,7 @@
 import dash
 from dash import html, dcc
 from dash.dependencies import Input, Output
-import base64
-from PIL import Image
+from picamera2 import Picamera2
 import io
 
 app = dash.Dash(__name__)
@@ -25,21 +24,17 @@ def update_image(n):
     image_data = get_image_data()
 
     # Return the data URL for the image
-    return image_data
+    return f'data:image/jpeg;base64,{image_data}'
 
 def get_image_data():
-    # Open the image and convert it to RGB
-    image = Image.open('image.jpg').convert('RGB')
+    # Create a Picamera2 object
+    with Picamera2() as camera:
+        # Capture an image and save it to a BytesIO object
+        image_data = io.BytesIO()
+        camera.capture(image_data, format='jpeg')
 
-    # Save the image data to a BytesIO object
-    image_data = io.BytesIO()
-    image.save(image_data, format='JPEG')
-
-    # Encode the image data as a base64 string
-    encoded_image = base64.b64encode(image_data.getvalue()).decode('ascii')
-
-    # Return the data URL for the image
-    return f'data:image/jpeg;base64,{encoded_image}'
+    # Return the image data as a base64 string
+    return image_data.getvalue().encode('base64').replace('\n', '')
 
 if __name__ == '__main__':
     app.run_server()
