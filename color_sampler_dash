@@ -3,6 +3,8 @@ from dash import html, dcc
 from dash.dependencies import Input, Output
 from picamera2 import Picamera2
 import io
+import base64
+from PIL import Image
 
 app = dash.Dash(__name__)
 
@@ -15,26 +17,30 @@ app.layout = html.Div([
     )
 ])
 
+# Create a Picamera2 object and start the camera
+picam2 = Picamera2()
+picam2.start(show_preview=True)
+
 @app.callback(
     Output('image', 'src'),
     Input('interval-component', 'n_intervals')
 )
 def update_image(n):
-    # Get the image data
-    image_data = get_image_data()
+    # Capture an image as a NumPy array
+    image_array = picam2.capture_array("main")
+
+    # Convert the NumPy array to a PIL Image
+    image = Image.fromarray(image_array)
+
+    # Save the image data to a BytesIO object
+    image_data = io.BytesIO()
+    image.save(image_data, format='JPEG')
+
+    # Encode the image data as a base64 string
+    encoded_image = base64.b64encode(image_data.getvalue()).decode('ascii')
 
     # Return the data URL for the image
-    return f'data:image/jpeg;base64,{image_data}'
-
-def get_image_data():
-    # Create a Picamera2 object
-    with Picamera2() as camera:
-        # Capture an image and save it to a BytesIO object
-        image_data = io.BytesIO()
-        camera.capture(image_data, format='jpeg')
-
-    # Return the image data as a base64 string
-    return image_data.getvalue().encode('base64').replace('\n', '')
+    return f'data:image/jpeg;base64,{encoded_image}'
 
 if __name__ == '__main__':
     app.run_server()
