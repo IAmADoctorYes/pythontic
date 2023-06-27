@@ -6,6 +6,8 @@ import io
 import base64
 from PIL import Image, ImageDraw
 import numpy as np
+import atexit
+from time import sleep
 
 app = dash.Dash(__name__)
 
@@ -13,7 +15,7 @@ app.layout = html.Div([
     html.Img(id='image'),
     dcc.Interval(
         id='interval-component',
-        interval=1*1000, # in milliseconds
+        interval=2*1000, # in milliseconds
         n_intervals=0
     ),
     html.Div(id='rgb-value'),
@@ -25,7 +27,12 @@ app.layout = html.Div([
 
 # Create a Picamera2 object and start the camera
 picam2 = Picamera2()
-picam2.start(show_preview=True)
+controls = {"AnalogueGain": 10.0, "AwbMode":False}
+preview_config = picam2.create_preview_configuration(controls=controls)
+picam2.configure(preview_config)
+picam2.start(show_preview=False)
+
+sleep(5)
 
 @app.callback(
     [Output('image', 'src'), Output('rgb-value', 'children')],
@@ -52,20 +59,45 @@ def update_image(n, n_clicks, target_r, target_g, target_b):
     avg_rgb = np.mean(sample_array, axis=(0, 1))
 
     # Draw a box on the image to represent the sample area
-    draw = ImageDraw.Draw(image)
-    draw.rectangle(sample_box, outline=tuple(avg_rgb.astype(int)), width=3)
 
     # Calibrate the camera if the calibrate button was clicked
     if n_clicks > 0 and all(v is not None for v in [target_r, target_g, target_b]):
         target_rgb = np.array([target_r, target_g, target_b])
         calibration_offset = target_rgb - avg_rgb
+        metadata = picam2.capture_metadata()
+        current_gains = metadata["ColourGains"]
+        r, g, b = image.split()
+        r = r.point(lambda i: i + calibration_offset[0])
+        g = g.point(lambda i: i + calibration_offset[1])
+        b = b.point(lambda i: i + calibration_offset[2])
+        image = Image.merge('RGB', (r,g,b))
+        #image = Image.fromarray(image)    
+        print("calibration offset:")
+        print(calibration_offset)
+        #sleep(2)
+        print("current gains:")
+        print(current_gains)
+        #sleep(2)
+        #controls = {"AnalogueGain": 10.0, "AwbMode":False}
+        #preview_config = picam2.create_preview_configuration(controls=controls)
+        #picam2.configure(preview_config)
+        width, height = image.size
+        center_x, center_y = width // 2, height // 2
+        sample_size = 10
 
-        picam2.awb_gains = tuple(picam2.awb_gains + calibration_offset)
-
+        sample_box = (center_x - sample_size // 2, center_y - sample_size // 2,
+                  center_x + sample_size // 2, center_y + sample_size // 2)
+        sample_image = image.crop(sample_box)
+        sample_array = np.array(sample_image)
+        avg_rgb = np.mean(sample_array, axis=(0, 1))
         # Reset the calibrate button clicks to prevent repeated calibration
         n_clicks = 0
+        sleep(1)
 
+    
     # Save the image data to a BytesIO object
+    draw = ImageDraw.Draw(image)
+    draw.rectangle(sample_box, outline=(0,0,0), width=1)
     image_data = io.BytesIO()
     image.save(image_data, format='JPEG')
 
@@ -82,3 +114,4 @@ atexit.register(stop_camera)
 
 if __name__ == '__main__':
     app.run_server()
+
