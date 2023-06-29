@@ -21,6 +21,7 @@ app.layout = html.Div([
         n_intervals=0
     ),
     html.Div(id='rgb-value'),
+    html.Div(id='median-rgb-value'),
     html.Button('Calibrate', id='calibrate-button', n_clicks=0),
     dcc.Input(id='target-r', type='number', placeholder='Target R value'),
     dcc.Input(id='target-g', type='number', placeholder='Target G value'),
@@ -32,10 +33,9 @@ picam2 = Picamera2()
 picam2.start(show_preview=False)
 
 @app.callback(
-    [Output('image', 'src'), Output('rgb-histogram', 'figure'), Output('rgb-value', 'children')],
+    [Output('image', 'src'), Output('rgb-histogram', 'figure'), Output('rgb-value', 'children'), Output('median-rgb-value', 'children')],
     [Input('interval-component', 'n_intervals')], [State('calibrate-button', 'n_clicks'),
-    State('target-r', 'value'), State('target-g', 'value'), State('target-b', 'value')]
-)
+    State('target-r', 'value'), State('target-g', 'value'), State('target-b', 'value')])
 def update_image(n, n_clicks, target_r, target_g, target_b):
     # Capture an image as a PIL Image object
     image = picam2.capture_image("main")
@@ -100,7 +100,7 @@ def update_image(n, n_clicks, target_r, target_g, target_b):
     # Draw a box on the image to represent the sample area
     draw = ImageDraw.Draw(image)
     draw.rectangle(sample_box, outline=(0,0,0), width=3)
-    
+    median_rgb = np.median(sample_array, axis=(0,1))
     # Save the image data to a BytesIO object
     image_data = io.BytesIO()
     image.save(image_data, format='JPEG')
@@ -109,7 +109,7 @@ def update_image(n, n_clicks, target_r, target_g, target_b):
     encoded_image = base64.b64encode(image_data.getvalue()).decode('ascii')
 
     # Return the data URL for the image and the average RGB value
-    return f'data:image/jpeg;base64,{encoded_image}', figure, f'Average RGB value: {avg_rgb}'
+    return f'data:image/jpeg;base64,{encoded_image}', figure, f'Average RGB value: {avg_rgb}', f'Median RGB value: {median_rgb}'
 
 def stop_camera():
     picam2.stop()
