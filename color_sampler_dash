@@ -8,11 +8,13 @@ import base64
 from PIL import Image, ImageDraw
 import numpy as np
 import atexit
+import plotly.graph_objs as go
 
 app = dash.Dash(__name__)
 
 app.layout = html.Div([
     html.Img(id='image'),
+    dcc.Graph(id='rgb-histogram'),
     dcc.Interval(
         id='interval-component',
         interval=1*1000, # in milliseconds
@@ -30,7 +32,7 @@ picam2 = Picamera2()
 picam2.start(show_preview=False)
 
 @app.callback(
-    [Output('image', 'src'), Output('rgb-value', 'children')],
+    [Output('image', 'src'), Output('rgb-histogram', 'figure'), Output('rgb-value', 'children')],
     [Input('interval-component', 'n_intervals')], [State('calibrate-button', 'n_clicks'),
     State('target-r', 'value'), State('target-g', 'value'), State('target-b', 'value')]
 )
@@ -51,6 +53,31 @@ def update_image(n, n_clicks, target_r, target_g, target_b):
                   center_x + sample_size // 2, center_y + sample_size // 2)
     sample_image = image.crop(sample_box)
     sample_array = np.array(sample_image)
+    
+    # Compute the binned RGB values for each color channel
+    bins = np.arange(0, 256)
+    r_hist, _ = np.histogram(sample_array[..., 0], bins=bins)
+    g_hist, _ = np.histogram(sample_array[..., 1], bins=bins)
+    b_hist, _ = np.histogram(sample_array[..., 2], bins=bins)
+
+    # Create a list of go.Bar traces for each color channel
+    data = [
+        go.Bar(x=bins[:-1], y=r_hist, name='R', marker_color='red'),
+        go.Bar(x=bins[:-1], y=g_hist, name='G', marker_color='green'),
+        go.Bar(x=bins[:-1], y=b_hist, name='B', marker_color='blue')
+    ]
+
+    # Create a layout for the graph
+    layout = go.Layout(
+        barmode='overlay',
+        xaxis=dict(title='Pixel Value'),
+        yaxis=dict(title='Count')
+    )
+
+    # Create a Figure object for the graph
+    figure = go.Figure(data=data, layout=layout)
+
+    
     avg_rgb = np.mean(sample_array, axis=(0, 1))
 
     # Calibrate the camera if the calibrate button was clicked
@@ -67,6 +94,7 @@ def update_image(n, n_clicks, target_r, target_g, target_b):
         callback_context.triggered[0]['prop_id'].split('.')[0] == 'calibrate-button'
         calibrate_button = callback_context.states[('calibrate-button', 'n_clicks')]
         calibrate_button.n_clicks = 0
+
         
 
     # Draw a box on the image to represent the sample area
@@ -81,7 +109,7 @@ def update_image(n, n_clicks, target_r, target_g, target_b):
     encoded_image = base64.b64encode(image_data.getvalue()).decode('ascii')
 
     # Return the data URL for the image and the average RGB value
-    return f'data:image/jpeg;base64,{encoded_image}', f'Average RGB value: {avg_rgb}'
+    return f'data:image/jpeg;base64,{encoded_image}', figure, f'Average RGB value: {avg_rgb}'
 
 def stop_camera():
     picam2.stop()
