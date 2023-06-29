@@ -13,8 +13,10 @@ import plotly.graph_objs as go
 app = dash.Dash(__name__)
 
 app.layout = html.Div([
-    html.Img(id='image'),
-    dcc.Graph(id='rgb-histogram'),
+   html.Div([
+      html.Img(id='image', style={'width':'50%'}),
+      dcc.Graph(id='rgb-histogram', style={'width':'50%'})
+   ], style={'display': 'flex', 'flexDirection': 'row', 'width':'100%'}),
     dcc.Interval(
         id='interval-component',
         interval=1*1000, # in milliseconds
@@ -54,23 +56,35 @@ def update_image(n, n_clicks, target_r, target_g, target_b):
     sample_image = image.crop(sample_box)
     sample_array = np.array(sample_image)
     
+    avg_rgb = np.mean(sample_array, axis=(0, 1))
+    
     # Compute the binned RGB values for each color channel
     bins = np.arange(0, 256)
     r_hist, _ = np.histogram(sample_array[..., 0], bins=bins)
     g_hist, _ = np.histogram(sample_array[..., 1], bins=bins)
     b_hist, _ = np.histogram(sample_array[..., 2], bins=bins)
-
+   
+    x_min = max(0, int(np.min(avg_rgb)) - 10)
+    x_max = min(255, int(np.max(avg_rgb)) + 10)
+    
+    r_text = np.full_like(r_hist, None, dtype=object)
+    r_text[np.argmax(r_hist)] = np.argmax(r_hist)
+    g_text = np.full_like(g_hist, None, dtype=object)
+    g_text[np.argmax(g_hist)] = np.argmax(g_hist)
+    b_text = np.full_like(b_hist, None, dtype=object)
+    b_text[np.argmax(b_hist)] = np.argmax(b_hist)
+   
     # Create a list of go.Bar traces for each color channel
     data = [
-        go.Bar(x=bins[:-1], y=r_hist, name='R', marker_color='red'),
-        go.Bar(x=bins[:-1], y=g_hist, name='G', marker_color='green'),
-        go.Bar(x=bins[:-1], y=b_hist, name='B', marker_color='blue')
+        go.Bar(x=bins[:-1], y=r_hist, name='R', marker_color='red', text=r_text, textposition = 'outside'),
+        go.Bar(x=bins[:-1], y=g_hist, name='G', marker_color='green', text=g_text, textposition = 'outside'),
+        go.Bar(x=bins[:-1], y=b_hist, name='B', marker_color='blue', text=b_text, textposition = 'outside')
     ]
 
     # Create a layout for the graph
     layout = go.Layout(
         barmode='overlay',
-        xaxis=dict(title='Pixel Value'),
+        xaxis=dict(title='Pixel Value', range=[x_min,x_max]),
         yaxis=dict(title='Count')
     )
 
@@ -78,7 +92,6 @@ def update_image(n, n_clicks, target_r, target_g, target_b):
     figure = go.Figure(data=data, layout=layout)
 
     
-    avg_rgb = np.mean(sample_array, axis=(0, 1))
 
     # Calibrate the camera if the calibrate button was clicked
     if n_clicks < -10 and all(v is not None for v in [target_r, target_g, target_b]):
