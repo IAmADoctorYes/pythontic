@@ -33,6 +33,11 @@ app.layout = html.Div([
 # Create a Picamera2 object and start the camera
 picam2 = Picamera2()
 picam2.start(show_preview=False)
+metadata = picam2.capture_metadata()
+current_gains = metadata["ColourGains"]
+gains = list(current_gains)
+gains = tuple([gains[0]+0.7, gains[1]])
+picam2.set_controls({"ColourGains": gains, "AwbEnable": False})
 
 @app.callback(
     [Output('image', 'src'), Output('rgb-histogram', 'figure'), Output('rgb-value', 'children'), Output('median-rgb-value', 'children')],
@@ -49,7 +54,7 @@ def update_image(n, n_clicks, target_r, target_g, target_b):
     # Take a sample of pixels from the center of the screen and output the average RGB value
     width, height = image.size
     center_x, center_y = width // 2, height // 2
-    sample_size = 10
+    sample_size = 20
 
     sample_box = (center_x - sample_size // 2, center_y - sample_size // 2,
                   center_x + sample_size // 2, center_y + sample_size // 2)
