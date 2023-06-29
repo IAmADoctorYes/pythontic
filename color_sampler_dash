@@ -1,5 +1,6 @@
 import dash
 from dash import html, dcc
+from dash import callback_context
 from dash.dependencies import Input, Output, State
 from picamera2 import Picamera2
 import io
@@ -7,7 +8,6 @@ import base64
 from PIL import Image, ImageDraw
 import numpy as np
 import atexit
-from time import sleep
 
 app = dash.Dash(__name__)
 
@@ -15,7 +15,7 @@ app.layout = html.Div([
     html.Img(id='image'),
     dcc.Interval(
         id='interval-component',
-        interval=2*1000, # in milliseconds
+        interval=1*1000, # in milliseconds
         n_intervals=0
     ),
     html.Div(id='rgb-value'),
@@ -27,17 +27,12 @@ app.layout = html.Div([
 
 # Create a Picamera2 object and start the camera
 picam2 = Picamera2()
-controls = {"AnalogueGain": 10.0, "AwbMode":False}
-preview_config = picam2.create_preview_configuration(controls=controls)
-picam2.configure(preview_config)
 picam2.start(show_preview=False)
-
-sleep(5)
 
 @app.callback(
     [Output('image', 'src'), Output('rgb-value', 'children')],
-    [Input('interval-component', 'n_intervals'), Input('calibrate-button', 'n_clicks')],
-    [State('target-r', 'value'), State('target-g', 'value'), State('target-b', 'value')]
+    [Input('interval-component', 'n_intervals')], [State('calibrate-button', 'n_clicks'),
+    State('target-r', 'value'), State('target-g', 'value'), State('target-b', 'value')]
 )
 def update_image(n, n_clicks, target_r, target_g, target_b):
     # Capture an image as a PIL Image object
@@ -58,46 +53,27 @@ def update_image(n, n_clicks, target_r, target_g, target_b):
     sample_array = np.array(sample_image)
     avg_rgb = np.mean(sample_array, axis=(0, 1))
 
-    # Draw a box on the image to represent the sample area
-
     # Calibrate the camera if the calibrate button was clicked
-    if n_clicks > 0 and all(v is not None for v in [target_r, target_g, target_b]):
+    if n_clicks < -10 and all(v is not None for v in [target_r, target_g, target_b]):
         target_rgb = np.array([target_r, target_g, target_b])
         calibration_offset = target_rgb - avg_rgb
+        
         metadata = picam2.capture_metadata()
         current_gains = metadata["ColourGains"]
-        r, g, b = image.split()
-        r = r.point(lambda i: i + calibration_offset[0])
-        g = g.point(lambda i: i + calibration_offset[1])
-        b = b.point(lambda i: i + calibration_offset[2])
-        image = Image.merge('RGB', (r,g,b))
-        #image = Image.fromarray(image)    
-        print("calibration offset:")
-        print(calibration_offset)
-        #sleep(2)
-        print("current gains:")
-        print(current_gains)
-        #sleep(2)
-        #controls = {"AnalogueGain": 10.0, "AwbMode":False}
-        #preview_config = picam2.create_preview_configuration(controls=controls)
-        #picam2.configure(preview_config)
-        width, height = image.size
-        center_x, center_y = width // 2, height // 2
-        sample_size = 10
+        gains = [current_gains[0]+0.1*calibration_offset[0],current_gains[1]+0.1*calibration_offset[1]]
+        picam2.set_controls({"ColourGains": gains})
 
-        sample_box = (center_x - sample_size // 2, center_y - sample_size // 2,
-                  center_x + sample_size // 2, center_y + sample_size // 2)
-        sample_image = image.crop(sample_box)
-        sample_array = np.array(sample_image)
-        avg_rgb = np.mean(sample_array, axis=(0, 1))
         # Reset the calibrate button clicks to prevent repeated calibration
-        n_clicks = 0
-        sleep(1)
+        callback_context.triggered[0]['prop_id'].split('.')[0] == 'calibrate-button'
+        calibrate_button = callback_context.states[('calibrate-button', 'n_clicks')]
+        calibrate_button.n_clicks = 0
+        
 
+    # Draw a box on the image to represent the sample area
+    draw = ImageDraw.Draw(image)
+    draw.rectangle(sample_box, outline=(0,0,0), width=3)
     
     # Save the image data to a BytesIO object
-    draw = ImageDraw.Draw(image)
-    draw.rectangle(sample_box, outline=(0,0,0), width=1)
     image_data = io.BytesIO()
     image.save(image_data, format='JPEG')
 
@@ -114,4 +90,3 @@ atexit.register(stop_camera)
 
 if __name__ == '__main__':
     app.run_server()
-
